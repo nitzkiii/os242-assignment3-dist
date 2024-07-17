@@ -13,18 +13,22 @@ static const char message[] = {
 static const char key[] = "OS2024";
 
 int main (void) {
-  printf("crypto_cli: attempting to decrypt message\n");
 
   uint key_size = sizeof(key) - 1;
   uint data_size = sizeof(message);
 
+
   const uint op_size = sizeof(struct crypto_op) + key_size + data_size;
   struct crypto_op* op = malloc(op_size);
 
+
   op->type = CRYPTO_OP_TYPE_DECRYPT;
   op->state = CRYPTO_OP_STATE_INIT;
+
+
   op->key_size = key_size;
   op->data_size = data_size;
+
 
   memcpy(op->payload, key, key_size);
   memcpy(op->payload + key_size, message, data_size);
@@ -32,6 +36,8 @@ int main (void) {
   crypto_op(op, op_size);
   
   volatile enum crypto_op_state* op_state = &op->state;
+
+
   while (*op_state == CRYPTO_OP_STATE_INIT)
     ;
 

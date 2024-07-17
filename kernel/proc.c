@@ -688,3 +688,94 @@ procdump(void)
     printf("\n");
   }
 }
+
+
+// Function to map shared pages from one process to another
+uint64 map_shared_pages(struct proc* src_proc, struct proc* dst_proc, uint64 src_va, uint64 size) {
+  // Align source virtual address down to the nearest page boundary
+  uint64 src_start = PGROUNDDOWN(src_va);
+  // Align end of source address range up to the nearest page boundary
+  uint64 src_end = src_va + size; 
+  // Align destination process's address space end to the nearest page boundary
+  uint64 dst_start = PGROUNDUP(dst_proc->sz); // Start at the end of the destination's address space
+  // Calculate destination virtual address with correct offset within the page
+  uint64 dst_va = dst_start + (src_va - src_start);
+  uint64 dst_va_boundary = PGROUNDDOWN(dst_va);
+
+  // Iterate through each page to be mapped
+  for (uint64 va = src_start; va < src_end; va += PGSIZE) {
+    // Get the page table entry (PTE) for the source virtual address
+    pte_t *pte = walk(src_proc->pagetable, va, 0);
+    // Check if the PTE is valid and user-accessible
+    if (pte == 0 || (*pte & PTE_V) == 0 || (*pte & PTE_U) == 0) {
+      return 0; //map_shared_pages: invalid source PTE
+    }
+
+    // Extract the physical address and permissions from the PTE
+    uint64 pa = PTE2PA(*pte);
+
+    if (pa == 0) {
+      return 0;
+    }
+
+    // Extract existing permissions and mask out write, execute, read permissions
+    int perm = PTE_FLAGS(*pte);
+
+    // Add the shared flag to permissions
+    perm |= PTE_S;
+
+    // Map the physical page to the destination process
+    if (mappages(dst_proc->pagetable, dst_va_boundary, PGSIZE, pa, perm) != 0) {
+      return 0;//panic("map_shared_pages: mapping failed");
+    }
+
+    // Move to the next page in the destination address space
+    dst_va_boundary += PGSIZE;
+
+    // Update the size of the destination process's address space
+    dst_proc->sz += PGSIZE;
+  }
+
+  return dst_va;
+}
+
+
+// Function to unmap shared pages from the destination process
+uint64 unmap_shared_pages(struct proc *p, uint64 addr, uint64 size)
+{
+    uint64 va_start = PGROUNDDOWN(addr);//va
+    uint64 va_end = addr + size;
+
+    for (uint64 va = va_start; va < va_end; va += PGSIZE) {
+
+        // Check if the mapping exists after uvmunmap()
+        pte_t *pte = walk(p->pagetable, va, 0);
+        if (pte == 0 || (*pte & PTE_V) == 0 || (*pte & PTE_S) == 0 || ((*pte & PTE_U) == 0)) {
+            return -1; // Mapping doesn't exist or isn't a shared mapping
+        }
+
+    }
+
+    int npages = (PGROUNDDOWN(addr + size) - PGROUNDDOWN(addr)) / PGSIZE + 1;
+    // Call uvmunmap() to unmap the page
+    uvmunmap(p->pagetable, va_start, npages, 0);
+
+    // Update process size accordingly
+    p->sz -= npages * PGSIZE;
+
+    return 0; // Return success
+}
+
+
+struct proc* find_proc(int pid) {
+  struct proc *p;
+  for(p = proc; p < &proc[NPROC]; p++){
+    //acquire(&p->lock);
+    if(p->pid == pid){
+      return p;
+    }
+    //release(&p->lock);
+  }
+  return 0;
+}
+

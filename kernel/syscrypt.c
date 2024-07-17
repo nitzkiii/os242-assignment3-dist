@@ -71,7 +71,7 @@ uint64 sys_take_shared_memory_request(void) {
   copyout(p->pagetable, arg_dst_va, (char*)&dst_va, sizeof(dst_va));
   copyout(p->pagetable, arg_dst_size, (char*)&req.size, sizeof(req.size));
 
-  release(&src_proc->lock);
+  //release(&src_proc->lock);
   return 0;
 }
 
