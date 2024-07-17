@@ -18,8 +18,6 @@ int main(void) {
 
   printf("crypto_srv: starting\n");
 
-  // TODO: implement the cryptographic server here
-
    if (getpid() != 2) {
         printf("crypto_srv: process not started by kernel (PID should be 2)\n");
         exit(1);
@@ -32,21 +30,20 @@ int main(void) {
     int ret = take_shared_memory_request(&addr, &size);
 
     if (ret == -1) {
-      // No request available
+      // No request at the moment in the shared memory
       continue;
     }
 
     struct crypto_op *op = addr;
 
-    // Validate the request
+    // Check that the request received in the shared memory is valid
     if (op->state != CRYPTO_OP_STATE_INIT ||
       (op->type != CRYPTO_OP_TYPE_ENCRYPT && op->type != CRYPTO_OP_TYPE_DECRYPT) ||
-      op->key_size <= 0 || op->data_size <= 0 )  //op->key_size + op->data_size + sizeof(struct crypto_op) > size
+      op->key_size <= 0 || op->data_size <= 0 )  
       {
-        // Ensure memory operations complete before updating state
+        // Update the state to an error
         asm volatile ("fence rw,rw" : : : "memory");  
         op->state = CRYPTO_OP_STATE_ERROR;
-        //remove_shared_memory_request(addr, size); //check if neededdddddddd
         continue;
       }
 
@@ -54,17 +51,16 @@ int main(void) {
     uchar *key = op->payload;
     uchar *data = op->payload + op->key_size;
 
+    //Encrypt the message with the XOR and save it to the data
     for (uint64 i = 0; i < op->data_size; i++) {
       data[i] ^= key[i % op->key_size];
     }
 
-    // Ensure memory operations complete before updating state
+    // Update the state to Done
     asm volatile ("fence rw,rw" : : : "memory");
-
-    // Mark the request as done
     op->state = CRYPTO_OP_STATE_DONE;
 
-    // Remove shared memory mapping
+    // Remove mapping aafter proccessing the request
     remove_shared_memory_request(addr, size);
   }
 

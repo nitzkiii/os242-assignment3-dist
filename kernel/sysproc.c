@@ -105,7 +105,11 @@ sys_map_shared_pages(void)
 
   struct proc *src_proc = find_proc(src_pid);
   
-  return map_shared_pages(src_proc, myproc(), va, size);
+  uint64 ret = map_shared_pages(src_proc, myproc(), va, size);
+
+  release(&src_proc->lock);
+
+  return ret;
 }
 
 uint64

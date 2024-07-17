@@ -13,7 +13,7 @@ static const char message[] = {
 static const char key[] = "OS2024";
 
 int main (void) {
-
+  printf("crypto_cli: attempting to decrypt message\n");
   uint key_size = sizeof(key) - 1;
   uint data_size = sizeof(message);
 
